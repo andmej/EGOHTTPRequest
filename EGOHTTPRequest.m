@@ -266,7 +266,7 @@ static NSLock* __requestsLock;
 
 	if(!isCancelled) {
 		if([self.delegate respondsToSelector:self.didFinishSelector]) {
-			[self.delegate performSelectorOnMainThread:self.didFinishSelector withObject:self waitUntilDone:NO];
+			[self.delegate performSelector:self.didFinishSelector withObject:self];
 		}
 	}
 	
