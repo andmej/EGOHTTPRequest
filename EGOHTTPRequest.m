@@ -33,14 +33,16 @@ static NSLock* __requestsLock;
 + (void)cleanUpRequest:(EGOHTTPRequest*)request;
 + (NSLock*)_requestsLock;
 - (NSURLRequest*)_buildURLRequest;
++ (void) showNetworkActivityIndicator;
++ (void) hideNetworkActivityIndicator;
 @end
 
 
 @implementation EGOHTTPRequest
 @synthesize url=_URL, response=_response, delegate=_delegate, timeoutInterval=_timeoutInterval, 
-			didFinishSelector=_didFinishSelector, didFailSelector=_didFailSelector, error=_error,
-			cancelled=isCancelled, started=isStarted, finished=isFinished, requestMethod=_requestMethod,
-			requestBody=_requestBody;
+didFinishSelector=_didFinishSelector, didFailSelector=_didFailSelector, error=_error,
+cancelled=isCancelled, started=isStarted, finished=isFinished, requestMethod=_requestMethod,
+requestBody=_requestBody;
 
 - (id)initWithURL:(NSURL*)aURL {
 	return [self initWithURL:aURL delegate:nil];
@@ -52,7 +54,7 @@ static NSLock* __requestsLock;
 		self.delegate = delegate;
 		_responseData = [[NSMutableData alloc] init];
 		_requestHeaders = [[NSMutableDictionary alloc] init];
-
+        
 		self.timeoutInterval = 60;
 		self.didFinishSelector = @selector(requestDidFinish:);
 		self.didFailSelector = @selector(requestDidFail:withError:);
@@ -120,6 +122,7 @@ static NSLock* __requestsLock;
 	NSURLRequest* request = [self _buildURLRequest];
 	
 	if(request) {
+        [[self class] showNetworkActivityIndicator];
 		[self performSelectorInBackground:@selector(startConnectionInBackgroundWithRequest:) withObject:request];
 	}
 }
@@ -127,6 +130,8 @@ static NSLock* __requestsLock;
 - (void)startSynchronous {
 	NSURLRequest* request = [self _buildURLRequest];
 	if(!request) return;
+    
+    [[self class] showNetworkActivityIndicator];
 	
 	NSURLResponse* aResponse = nil;
 	NSError* anError = nil;
@@ -147,7 +152,7 @@ static NSLock* __requestsLock;
 		}		
 	} else {
 		_error = nil;
-
+        
 		if(!isCancelled) {
 			if([self.delegate respondsToSelector:self.didFinishSelector]) {
 				[self.delegate performSelector:self.didFinishSelector withObject:self];
@@ -172,7 +177,7 @@ static NSLock* __requestsLock;
 	if(isCancelled) {
 		[_connection cancel];
 	}
-
+    
 	[_backgroundThread release];
 	_backgroundThread = nil;
 	
@@ -182,10 +187,22 @@ static NSLock* __requestsLock;
 	[pool release];
 }
 
+
++ (void) showNetworkActivityIndicator {
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
+}
+
++ (void) hideNetworkActivityIndicator {
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+}
+
 + (void)cleanUpRequest:(EGOHTTPRequest*)request {
 	[[[self class] _requestsLock] lock];
 	request.delegate = nil;
 	[[self currentRequests] removeObject:request];
+    if ([[self currentRequests] count] == 0) {
+        [self hideNetworkActivityIndicator];
+    }
 	[[[self class] _requestsLock] unlock];
 }
 
@@ -263,7 +280,7 @@ static NSLock* __requestsLock;
 
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection {
 	if(connection != _connection) return;
-
+    
 	if(!isCancelled) {
 		if([self.delegate respondsToSelector:self.didFinishSelector]) {
 			[self.delegate performSelector:self.didFinishSelector withObject:self];
@@ -279,7 +296,7 @@ static NSLock* __requestsLock;
 	
 	[_error release];
 	_error = [error retain];
-
+    
 	if(!isCancelled) {
 		if([self.delegate respondsToSelector:self.didFailSelector]) {
 			[self.delegate performSelector:self.didFailSelector withObject:self withObject:error];
@@ -303,7 +320,7 @@ static NSLock* __requestsLock;
 	[_connection release], _connection = nil;
 	[_error release], _error = nil;
 	[_URL release], _URL = nil;
-
+    
 	[super dealloc];
 }
 
